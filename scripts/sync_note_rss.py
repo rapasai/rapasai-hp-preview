@@ -36,7 +36,16 @@ def extract(xmlbytes):
             continue
         title = (item.findtext('title') or '').strip()
         raw_date = (item.findtext('pubDate') or '').strip()
-        thumb = (item.findtext(NS_MEDIA) or '').strip()
+        # media:thumbnail generally stores the URL in its url attribute, not text.
+        media = item.find(NS_MEDIA)
+        thumb = ((media.get('url') or media.text or '') if media is not None else '').strip()
+        if not thumb:
+            for elt in item:
+                if elt.tag.rsplit('}', 1)[-1] in ('enclosure','content'):
+                    candidate = (elt.get('url') or '').strip()
+                    if candidate.startswith('https://') and any(ext in candidate.lower() for ext in ('.jpg','.jpeg','.png','.webp','image')):
+                        thumb=candidate
+                        break
         if not title or not raw_date:
             raise ValueError(f'RSS記事のタイトルまたは日付がありません: {url}')
         dt = parsedate_to_datetime(raw_date)
