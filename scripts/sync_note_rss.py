@@ -146,6 +146,10 @@ def main():
     feed=extract(xml)
     articles_path=Path(args.articles)
     original=json.loads(articles_path.read_text(encoding='utf-8'))
+    # RSSに存在しない記事がある場合、過去の手入力タイトルを正式タイトルとして公開しない。
+    missing_titles=[e['url'] for e in original if canonical(e['url']) not in feed]
+    if missing_titles and not args.test_offline:
+        raise ValueError('正式タイトルがRSSで確認できない記事があります。同期を中止: '+', '.join(missing_titles))
     updated,changed,pending=sync(original,feed)
     # ALL registered covers must be sourced from note; no mixed local/remote publication.
     missing=[]
