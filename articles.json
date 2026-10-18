@@ -102,93 +102,11 @@
   },
   {
     "id": 12,
-    "title": "AI産業の資金と利益は、どう動くのか？――連載を始めます",
-    "category": "series",
+    "title": "第9回：データセンターの長期賃貸契約は、安定した利益を生むのか",
+    "category": "infra",
     "cover": "assets/covers/article_12.webp",
-    "url": "https://note.com/rapasai_lab/n/n45dfafc5f377",
-    "recommendation": "AIへの巨額投資で、本当に儲かるのは誰なのか。資金と利益の行方を連載で追います。",
-    "published_at": "2026-10-17",
-    "series_order": 0,
-    "recommendation_slot": "series_pick"
-  },
-  {
-    "id": 13,
-    "title": "第1回：AI産業を動かす巨額資金は、どこから来るのか",
-    "category": "series",
-    "cover": "assets/covers/article_13.webp",
-    "url": "https://note.com/rapasai_lab/n/n8771d8ce0a60",
-    "recommendation": "",
-    "published_at": "2026-10-17",
-    "series_order": 1
-  },
-  {
-    "id": 14,
-    "title": "第2回：AI産業の巨額設備投資は、どこへ向かうのか",
-    "category": "series",
-    "cover": "assets/covers/article_14.webp",
-    "url": "https://note.com/rapasai_lab/n/nb31084cad866",
-    "recommendation": "",
-    "published_at": "2026-10-17",
-    "series_order": 2
-  },
-  {
-    "id": 15,
-    "title": "第3回：AI産業の設備投資が増えると、利益も増えるのか",
-    "category": "series",
-    "cover": "assets/covers/article_15.webp",
-    "url": "https://note.com/rapasai_lab/n/n72774a947728",
-    "recommendation": "",
-    "published_at": "2026-10-17",
-    "series_order": 3
-  },
-  {
-    "id": 16,
-    "title": "第4回：半導体産業は、なぜ高収益なのか",
-    "category": "series",
-    "cover": "assets/covers/article_16.webp",
-    "url": "https://note.com/rapasai_lab/n/ne114c777f954",
-    "recommendation": "",
-    "published_at": "2026-10-17",
-    "series_order": 4
-  },
-  {
-    "id": 17,
-    "title": "第5回：データセンター建設の巨額受注は、利益を保証するのか",
-    "category": "series",
-    "cover": "assets/covers/article_17.webp",
-    "url": "https://note.com/rapasai_lab/n/n3f4cf979debc",
-    "recommendation": "",
-    "published_at": "2026-10-18",
-    "series_order": 5
-  },
-  {
-    "id": 18,
-    "title": "第6回：電力・冷却設備メーカーは、どうやって利益を生み出すのか",
-    "category": "series",
-    "cover": "assets/covers/article_18.webp",
-    "url": "https://note.com/rapasai_lab/n/n04fcd3cb4d40",
-    "recommendation": "",
-    "published_at": "2026-10-18",
-    "series_order": 6
-  },
-  {
-    "id": 19,
-    "title": "第7回：データセンターの土地・建物・設備は、誰が所有しているのか",
-    "category": "series",
-    "cover": "assets/covers/article_19.webp",
-    "url": "https://note.com/rapasai_lab/n/n2b8e077562ac",
-    "recommendation": "",
-    "published_at": "2026-10-18",
-    "series_order": 7
-  },
-  {
-    "id": 20,
-    "title": "第8回：データセンターの建設投資は、何年で回収できるのか",
-    "category": "series",
-    "cover": "assets/covers/article_20.webp",
-    "url": "https://note.com/rapasai_lab/n/nf9cabbc14e25",
-    "recommendation": "",
-    "published_at": "2026-10-18",
-    "series_order": 8
+    "url": "https://note.com/rapasai_lab/n/n3531a5020a48",
+    "recommendation": "15年契約で賃料収入は見通せても、利益まで安定するのか。契約条件と費用負担を追う。",
+    "published_at": "2026-10-18"
   }
 ]
