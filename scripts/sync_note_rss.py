@@ -13,6 +13,8 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request, urlopen
+from html.parser import HTMLParser
+from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 
 FEED = 'https://note.com/rapasai_lab/rss'
@@ -87,33 +89,86 @@ def sync(data, feed):
     pending.sort(key=lambda x:(x['date'],x['url']),reverse=True)
     return out, updated, pending
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--rss-file', help='local XML fixture (testing only)')
-    ap.add_argument('--articles', default='articles.json')
-    ap.add_argument('--pending', default='note_pending_articles.json')
-    args = ap.parse_args()
-    if args.rss_file:
-        xml = Path(args.rss_file).read_bytes()
-    else:
-        req = Request(FEED, headers={'User-Agent':'Mozilla/5.0 (compatible; RapasAILabBookshelfSync/1.0)', 'Accept':'application/rss+xml, application/xml, text/xml'})
-        with urlopen(req, timeout=25) as res:
-            content_type = res.headers.get('Content-Type','')
-            if 'xml' not in content_type and 'rss' not in content_type:
-                raise ValueError(f'RSSではない応答です: {content_type}')
-            xml = res.read(3_000_001)
-            if len(xml) > 3_000_000:
-                raise ValueError('RSSがサイズ上限を超えています')
-    feed = extract(xml)
-    articles_path = Path(args.articles)
-    original = json.loads(articles_path.read_text(encoding='utf-8'))
-    updated_data, changed, pending = sync(original, feed)
-    # Write only AFTER every validation passed.
-    if updated_data != original:
-        articles_path.write_text(json.dumps(updated_data, ensure_ascii=False, indent=2)+'\n',encoding='utf-8')
-    Path(args.pending).write_text(json.dumps(pending, ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-    print(f'RSS記事={len(feed)}, 既存記事={len(original)}, 更新記事={len(changed)}, 未登録記事={len(pending)}')
-    for url in changed: print('UPDATED:', url)
 
-if __name__ == '__main__':
-    main()
+class OGParser(HTMLParser):
+    def __init__(self):
+        super().__init__(); self.images=[]; self.titles=[]
+    def handle_starttag(self, tag, attrs):
+        if tag != 'meta': return
+        a=dict(attrs)
+        if a.get('property') in ('og:image','twitter:image') or a.get('name') == 'twitter:image':
+            self.images.append(a.get('content',''))
+        if a.get('property') == 'og:title': self.titles.append(a.get('content',''))
+
+def fetch_page_og(url):
+    req=Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'text/html'})
+    with urlopen(req,timeout=25) as res:
+        ct=res.headers.get('Content-Type','')
+        if 'html' not in ct: raise ValueError(f'記事HTMLを取得できません: {url}')
+        content=res.read(3_000_001)
+    if len(content)>3_000_000: raise ValueError('記事HTMLのサイズ制限超過')
+    parser=OGParser();parser.feed(content.decode('utf-8',errors='replace'))
+    for img in parser.images:
+        if valid_cover_url(img): return img
+    return ''
+
+def valid_cover_url(url):
+    try:
+        u=urlparse(url)
+        return u.scheme=='https' and u.hostname in ('assets.st-note.com','d2l930y2yx77uc.cloudfront.net','note.com','cdn.note.com','image.st-note.com') and bool(u.path.strip('/'))
+    except (ValueError,TypeError): return False
+
+def check_image(url):
+    if not valid_cover_url(url):raise ValueError(f'note画像CDN以外のURLです: {url}')
+    req=Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'image/avif,image/webp,image/png,image/jpeg,*/*'})
+    with urlopen(req,timeout=25) as res:
+        ct=res.headers.get('Content-Type','').split(';')[0].lower()
+        blob=res.read(64)
+        if not ct.startswith('image/') or not blob:
+            raise ValueError(f'表紙画像ではありません: {url}: {ct}')
+
+def main():
+    ap=argparse.ArgumentParser()
+    ap.add_argument('--rss-file',help='XMLテストファイル')
+    ap.add_argument('--articles',default='articles.json')
+    ap.add_argument('--pending',default='note_pending_articles.json')
+    ap.add_argument('--test-offline',action='store_true',help='テスト専用。画像の通信検証は行わない')
+    args=ap.parse_args()
+    if args.rss_file:
+        xml=Path(args.rss_file).read_bytes()
+    else:
+        req=Request(FEED,headers={'User-Agent':'Mozilla/5.0','Accept':'application/rss+xml,application/xml,text/xml'})
+        with urlopen(req,timeout=25) as res:
+            ct=res.headers.get('Content-Type','')
+            if 'xml' not in ct and 'rss' not in ct:raise ValueError(f'RSSではありません: {ct}')
+            xml=res.read(3_000_001)
+            if len(xml)>3_000_000:raise ValueError('RSSのサイズ制限超過')
+    feed=extract(xml)
+    articles_path=Path(args.articles)
+    original=json.loads(articles_path.read_text(encoding='utf-8'))
+    updated,changed,pending=sync(original,feed)
+    # ALL registered covers must be sourced from note; no mixed local/remote publication.
+    missing=[]
+    for entry in updated:
+        url=canonical(entry['url']); cover=entry.get('cover','')
+        if not valid_cover_url(cover):
+            if args.test_offline:
+                missing.append(url); continue
+            cover=fetch_page_og(url)
+            if cover:entry['cover']=cover
+        if not valid_cover_url(entry.get('cover','')):
+            missing.append(url)
+    if missing and not args.test_offline:
+        raise ValueError('画像URL未取得。公開データと表紙を変更しません: '+', '.join(missing))
+    if not args.test_offline:
+        for entry in updated: check_image(entry['cover'])
+        # All remote images verified, now atomically update the JSON and remove local covers.
+        text=json.dumps(updated,ensure_ascii=False,indent=2)+'\n'
+        tmp=articles_path.with_name(articles_path.name+'.tmp')
+        tmp.write_text(text,encoding='utf-8');tmp.replace(articles_path)
+        import shutil
+        shutil.rmtree('assets/covers',ignore_errors=True)
+    Path(args.pending).write_text(json.dumps(pending,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    print(f'RSS={len(feed)} 記事={len(updated)} 未検証画像={len(missing)}')
+
+if __name__=='__main__':main()
