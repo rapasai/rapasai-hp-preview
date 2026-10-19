@@ -1,17 +1,44 @@
-RapasAI Lab｜note記事情報・表紙画像の同期手順
+RapasAI Lab｜note記事情報の自動同期
 
-本版は、記事21件と連載第0～9回を維持します。デザインは変更していません。
-画像21枚は初回表示用・通信失敗時用として同梱しています。
+■ 初回だけ必要なもの
+この一式に含まれる次のファイルをGitHubへ反映します。
+・scripts/sync_note_rss.py
+・.github/workflows/sync-note-rss.yml
+・index.html
+・articles.json
 
-GitHubで .github/workflows/sync-note-rss.yml を含む全ファイルを反映してください。
-GitHub の Settings → Pages は「Deploy from a branch」「main」「/(root)」のままです。
-Actions → note記事タイトルと表紙の同期 → Run workflow で同期を実行します。
+■ 以後の記事追加
+新しい記事を追加するときは、articles.json に新しい1件を追加してGitHubへアップロードします。
+最低限必要な項目は次のとおりです。
 
-処理はnote公式RSSを取得し、記事URLが一致するものについて正式タイトルと公開日を更新します。
-表紙画像URLはRSSから取得し、足りなければ記事のOGPから取得します。
-画像データの取得に成功したURLだけ採用します。失敗時には同梱の表紙を使用します。
-RSSに表示されない古い記事は変更しません。
-新記事は自動で棚に追加せず、候補データに記録します。
-GitHub Actionsの実通信成功はGitHubで実行して確認してください。
+{
+  "id": 23,
+  "title": "",
+  "category": "series",
+  "cover": "",
+  "url": "https://note.com/rapasai_lab/n/xxxxxxxxxxxx",
+  "recommendation": "",
+  "published_at": "",
+  "series_order": 11
+}
 
-重要：CNAME（rapasai.jp）を同梱しています。削除しないでください。
+GitHubへarticles.jsonをアップロードすると、GitHub Actionsが自動実行されます。
+noteのRSSから次の情報を取得してarticles.jsonへ反映します。
+・正式タイトル
+・公開日
+・表紙画像URL
+
+category、series_order、recommendation、recommendation_slotなど、HP側の編集情報は変更しません。
+
+■ RSS反映が遅れた場合
+新記事がまだnote RSSに出ていない場合、その回の自動同期はFAILになり、articles.jsonは自動変更しません。
+ワークフローは1時間ごとにも実行されるため、RSSへ反映された後に自動で再試行します。
+既存記事は壊しません。
+
+■ 古い記事がRSS25件の外へ出た場合
+すでに正式タイトル・公開日・表紙URLが保存済みなら、その記事はそのまま保持します。
+記事総数を21件、22件などに固定していません。
+
+■ HP表示
+未同期でtitle/published_at/coverが不足している記事は、同期完了までHPの本棚には表示しません。
+既存の記事は通常どおり表示されます。
