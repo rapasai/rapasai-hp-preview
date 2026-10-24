@@ -124,8 +124,8 @@ function article(item,featured=false,idx=0){if(mode==='index'&&!featured)return 
 function featureArticle(item){return `<div class="feature-card"><div class="featured-tag">PICK UP</div>${link(item,`${coverWithPop(item,item.title+' の表紙')}<div class="booktitle">${esc(item.title)}</div>`)}<p class="recommendation">${esc(item.recommendation||'')}</p></div>`}
 function render(){
   // おすすめ記事は3枠維持し、note公開日で降順表示。未同期の記事は末尾に置く。
-  const picks=allArticles.filter(x=>['series_pick','editor_pick','inzai_pick'].includes(x.recommendation_slot))
-    .sort((a,b)=>(b.published_at||'').localeCompare(a.published_at||'')||Number(b.id)-Number(a.id));
+  const picks=allArticles.filter(x=>['series_pick','editor_pick','inzai_pick','regional_assets_pick'].includes(x.recommendation_slot))
+    .sort((a,b)=>(a.recommendation_slot==='regional_assets_pick'?-1:0)-(b.recommendation_slot==='regional_assets_pick'?-1:0)||(b.published_at||'').localeCompare(a.published_at||'')||Number(b.id)-Number(a.id));
   document.querySelector('#featured-items').innerHTML=picks.map(featureArticle).join('');
   document.querySelector('#article-count').textContent=`全${allArticles.length}本`;
   document.querySelector('#shelves').innerHTML=cats.map(([id,label])=>{
