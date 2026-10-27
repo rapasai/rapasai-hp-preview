@@ -8,28 +8,26 @@
 <link rel="stylesheet" href="./assets/library.css">
 </head>
 <body>
-<header class="site-header"><div class="nav"><a class="brand" href="../"><img src="../assets/rapasai-logo-mark.png" alt=""><span>RapasAI Lab</span></a><div class="nav-note">試作｜歩ける蔵書地図</div></div></header>
+<header class="site-header"><div class="nav"><a class="brand" href="../"><img src="../assets/rapasai-logo-mark.png" alt=""><span>RapasAI Lab</span></a><div class="nav-note">蔵書ナビ</div></div></header>
 <main class="page">
 <section class="hero">
 <div class="hero-kicker">LIBRARY MAP</div>
 <h1>蔵書ナビ</h1>
 <p class="lead">記事同士のつながりから、次に読む一冊を探せます。</p>
-<p id="regionDescription"></p>
 </section>
 <section>
-<div class="map-toolbar"><h2>AI・IT地域</h2><p>集落を選ぶと、その本棚に住む記事が開きます。道の立札を押すと、つながりの理由を読めます。</p></div>
+<div class="map-toolbar"><h2>AI・IT</h2></div>
 <div class="map-shell">
 <div class="map-scroll"><div class="map-canvas" id="mapCanvas">
-<svg class="roads" id="roads" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+<svg class="roads" id="roads" viewBox="0 0 1060 610" aria-hidden="true"></svg>
 <div class="sign-popover" id="signPopover"></div>
 </div></div>
-<div class="map-help">本棚＝集落、記事＝住人。集落同士を結ぶ道には「なぜ次へ進むのか」を示す立札があります。</div>
 </div>
 </section>
-<section class="village-view" id="villageView" aria-live="polite">
-<div class="village-head"><button class="back-map" id="backMap">← 地図へ戻る</button><h2 id="villageTitle"></h2><p id="villageQuestion"></p></div>
+<section class="shelf-view" id="shelfView" aria-live="polite">
+<div class="shelf-head"><button class="back-map" id="backMap">← 地図へ戻る</button><h2 id="shelfTitle"></h2><p id="shelfQuestion"></p></div>
 <div class="book-grid" id="bookGrid"></div>
-<div class="road-links"><h3>この集落から続く道</h3><div class="road-link-list" id="roadLinkList"></div></div>
+<div class="road-links"><h3>関連する本棚</h3><div class="road-link-list" id="roadLinkList"></div></div>
 </section>
 </main>
 <footer class="footer">© RapasAI Lab</footer>
