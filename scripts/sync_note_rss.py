@@ -187,6 +187,21 @@ def build_sync(original, feed, live_images=True):
         row = {'id': src['id'], 'url': url}
 
         if incoming is None:
+            # RSSに載っていない古い記事でも、表紙が空なら記事ページのOGPから補完する。
+            old_cover = (src.get('cover') or '').strip()
+            if not valid_cover_url(old_cover) and live_images:
+                try:
+                    og_cover = fetch_page_og(url)
+                except Exception as exc:
+                    og_cover = ''
+                    row['og_warning'] = str(exc)
+                if valid_cover_url(og_cover):
+                    entry['cover'] = og_cover
+                    entry['note_metadata_source'] = 'note_page_ogp'
+                    row['status'] = 'UPDATED_COVER_OGP'
+                    output.append(entry)
+                    report.append(row)
+                    continue
             row['status'] = 'PRESERVED_NOT_IN_RSS' if complete_existing(src) else 'PENDING_NOT_IN_RSS'
             output.append(entry)
             report.append(row)
@@ -257,23 +272,18 @@ def main():
         try:
             xml, ct = fetch_bytes_retry(FEED, 'application/rss+xml,application/xml,text/xml,*/*')
         except Exception as exc:
-            # note側の一時障害・HTTP制限で、既存のHPデータを壊したりActionを赤くしない。
-            Path(args.report).write_text(
-                json.dumps([{'status': 'RSS_FETCH_DEFERRED', 'error': str(exc)}], ensure_ascii=False, indent=2) + '\n',
-                encoding='utf-8'
-            )
-            print(f'WARN: note RSSを取得できませんでした。既存articles.jsonを保持します: {exc}')
-            raise SystemExit(0)
+            # RSSが落ちても、各記事ページのOGP取得で空の表紙を補完できるよう続行する。
+            print(f'WARN: note RSSを取得できませんでした。記事ページOGPで補完を試みます: {exc}')
+            xml = None
 
-    try:
-        feed = extract(xml)
-    except Exception as exc:
-        Path(args.report).write_text(
-            json.dumps([{'status': 'RSS_PARSE_DEFERRED', 'error': str(exc)}], ensure_ascii=False, indent=2) + '\n',
-            encoding='utf-8'
-        )
-        print(f'WARN: note RSSを解析できませんでした。既存articles.jsonを保持します: {exc}')
-        raise SystemExit(0)
+    if xml is None:
+        feed = {}
+    else:
+        try:
+            feed = extract(xml)
+        except Exception as exc:
+            print(f'WARN: note RSSを解析できませんでした。記事ページOGPで補完を試みます: {exc}')
+            feed = {}
 
     updated, report = build_sync(original, feed, live_images=not args.no_image_request)
     Path(args.report).write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
