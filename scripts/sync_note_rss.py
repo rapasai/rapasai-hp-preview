@@ -23,7 +23,6 @@ from urllib.parse import urlsplit, urlunsplit, urlparse
 from urllib.request import Request, urlopen
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
-import time
 
 FEED = 'https://note.com/rapasai_lab/rss'
 JST = timezone(timedelta(hours=9))
@@ -80,18 +79,6 @@ def fetch_bytes(url, accept, limit=3_000_000):
     if len(blob) > limit:
         raise ValueError(f'サイズ制限超過: {url}')
     return blob, content_type
-
-
-def fetch_bytes_retry(url, accept, limit=3_000_000, attempts=3):
-    last = None
-    for i in range(attempts):
-        try:
-            return fetch_bytes(url, accept, limit=limit)
-        except Exception as exc:
-            last = exc
-            if i + 1 < attempts:
-                time.sleep(2 * (i + 1))
-    raise last
 
 
 def fetch_page_og(url):
@@ -178,8 +165,7 @@ def complete_existing(e):
 
 
 def build_sync(original, feed, live_images=True):
-    """Sync conservatively: never erase valid existing metadata because note is late/unavailable."""
-    output, report = [], []
+    output, report, failures = [], [], []
     for src in original:
         entry = dict(src)
         url = canonical(src['url'])
@@ -187,74 +173,64 @@ def build_sync(original, feed, live_images=True):
         row = {'id': src['id'], 'url': url}
 
         if incoming is None:
-            # RSSに載っていない古い記事でも、表紙が空なら記事ページのOGPから補完する。
-            old_cover = (src.get('cover') or '').strip()
-            if not valid_cover_url(old_cover) and live_images:
-                try:
-                    og_cover = fetch_page_og(url)
-                except Exception as exc:
-                    og_cover = ''
-                    row['og_warning'] = str(exc)
-                if valid_cover_url(og_cover):
-                    entry['cover'] = og_cover
-                    entry['note_metadata_source'] = 'note_page_ogp'
-                    row['status'] = 'UPDATED_COVER_OGP'
-                    output.append(entry)
-                    report.append(row)
-                    continue
-            row['status'] = 'PRESERVED_NOT_IN_RSS' if complete_existing(src) else 'PENDING_NOT_IN_RSS'
+            if complete_existing(src):
+                row['status'] = 'PRESERVED_NOT_IN_RSS'
+                output.append(entry)
+                report.append(row)
+                continue
+            row['status'] = 'FAIL'
+            row['error'] = 'RSSに未同期の記事で、既存メタデータも未完成です'
+            failures.append(row['error'] + ': ' + url)
             output.append(entry)
             report.append(row)
             continue
 
+        cover = (incoming.get('cover') or '').strip()
+        if not valid_cover_url(cover):
+            try:
+                cover = fetch_page_og(url) if live_images else cover
+            except Exception as exc:
+                row['og_error'] = str(exc)
+
         title = (incoming.get('title') or '').strip()
         published_at = (incoming.get('published_at') or '').strip()
-        cover = (incoming.get('cover') or '').strip()
+        if not title or not DATE_RE.match(published_at):
+            row['status'] = 'FAIL'
+            row['error'] = 'RSSのタイトルまたは公開日が不正です'
+            failures.append(row['error'] + ': ' + url)
+            output.append(entry)
+            report.append(row)
+            continue
+        if not valid_cover_url(cover):
+            row['status'] = 'FAIL'
+            row['error'] = '表紙URLを取得できません'
+            failures.append(row['error'] + ': ' + url)
+            output.append(entry)
+            report.append(row)
+            continue
 
-        # Title/date may be updated independently. A malformed single RSS item must not fail the whole workflow.
-        if title:
-            entry['title'] = title
-        else:
-            row['title_warning'] = 'RSS title missing; preserved existing title'
-
-        if DATE_RE.match(published_at):
-            entry['published_at'] = published_at
-        else:
-            row['date_warning'] = 'RSS published_at invalid; preserved existing date'
-
-        # Cover is never cleared. Prefer RSS, then OGP, then an existing valid cover.
-        if not valid_cover_url(cover) and live_images:
+        changed_cover = cover != (src.get('cover') or '')
+        if live_images and changed_cover:
             try:
-                cover = fetch_page_og(url)
+                check_image(cover)
             except Exception as exc:
-                row['og_warning'] = str(exc)
+                row['status'] = 'FAIL'
+                row['error'] = str(exc)
+                failures.append(row['error'])
+                output.append(entry)
+                report.append(row)
+                continue
 
-        if valid_cover_url(cover):
-            old_cover = (src.get('cover') or '').strip()
-            if live_images and cover != old_cover:
-                try:
-                    check_image(cover)
-                except Exception as exc:
-                    # Official note CDN URL is retained; transient CDN checks do not fail the sync.
-                    row['image_check_warning'] = str(exc)
-            entry['cover'] = cover
-        else:
-            old_cover = (src.get('cover') or '').strip()
-            if valid_cover_url(old_cover):
-                entry['cover'] = old_cover
-                row['cover_status'] = 'PRESERVED_EXISTING_COVER'
-            else:
-                row['cover_status'] = 'PENDING_COVER'
-
-        if entry != src:
-            entry['note_metadata_source'] = 'note_rss_ogp'
-            row['status'] = 'UPDATED'
-        else:
-            row['status'] = 'UNCHANGED'
+        entry['title'] = title
+        entry['published_at'] = published_at
+        entry['cover'] = cover
+        entry['note_metadata_source'] = 'note_rss_ogp'
+        row.update({'status': 'UPDATED' if (entry != src) else 'UNCHANGED', 'title': title, 'published_at': published_at, 'cover': cover})
         output.append(entry)
         report.append(row)
 
-    return output, report
+    return output, report, failures
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -269,29 +245,24 @@ def main():
     if args.rss_file:
         xml = Path(args.rss_file).read_bytes()
     else:
-        try:
-            xml, ct = fetch_bytes_retry(FEED, 'application/rss+xml,application/xml,text/xml,*/*')
-        except Exception as exc:
-            # RSSが落ちても、各記事ページのOGP取得で空の表紙を補完できるよう続行する。
-            print(f'WARN: note RSSを取得できませんでした。記事ページOGPで補完を試みます: {exc}')
-            xml = None
+        xml, ct = fetch_bytes(FEED, 'application/rss+xml,application/xml,text/xml')
+        if 'xml' not in ct and 'rss' not in ct:
+            raise SystemExit(f'FAIL: RSSではありません: {ct}')
 
-    if xml is None:
-        feed = {}
-    else:
-        try:
-            feed = extract(xml)
-        except Exception as exc:
-            print(f'WARN: note RSSを解析できませんでした。記事ページOGPで補完を試みます: {exc}')
-            feed = {}
-
-    updated, report = build_sync(original, feed, live_images=not args.no_image_request)
+    feed = extract(xml)
+    updated, report, failures = build_sync(original, feed, live_images=not args.no_image_request)
     Path(args.report).write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
     counts = {}
     for r in report:
         counts[r['status']] = counts.get(r['status'], 0) + 1
-    print(f'RSS記事数={len(feed)} 対象={len(original)} ' + ' '.join(f'{k}={v}' for k,v in sorted(counts.items())))
+    print(f'RSS記事数={len(feed)} 対象={len(original)} ' + ' '.join(f'{k}={v}' for k,v in sorted(counts.items())) + f' FAIL={len(failures)}')
+
+    if failures:
+        print('FAIL: articles.json は変更しません')
+        for msg in failures:
+            print('-', msg)
+        raise SystemExit(1)
 
     if args.write:
         tmp = Path(args.articles + '.tmp')
