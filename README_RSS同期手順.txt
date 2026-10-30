@@ -35,8 +35,8 @@ GitHub Actionsがnote RSSを参照し、次を自動取得してarticles.jsonへ
 category、series_order、recommendation、recommendation_slotなど、HP側の編集情報は自動同期で変更しません。
 
 ■ RSS反映が遅れた場合
-新記事がまだnote RSSに出ていない場合、その回の同期はFAILになり、articles.jsonを壊しません。
-ワークフローは1時間ごとにも再実行されます。
+新記事がまだnote RSSに出ていない場合、その記事は保留（PENDING）として既存値を保持します。
+ワークフロー全体は失敗させず、1時間ごとの再実行でRSS反映後に自動取得します。
 既存記事はそのまま表示されます。
 
 ■ GitHub上で確認する場所
